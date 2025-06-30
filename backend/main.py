@@ -4,6 +4,7 @@ from typing import List
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 import yfinance as yf
+from yfinance import Search
 
 class Article(BaseModel):
     title: str
@@ -21,24 +22,30 @@ app = FastAPI(
 
 @app.get("/api/scrapenews/{ticker}", response_model=NewsResponse)
 def scrape_news(ticker: str):
-    # 1. Fetch news items from Yahoo Finance via yfinance
+    ticker = ticker.upper()
+
+    # 1. Try to fetch the top 5 news items via the Search API
     try:
-        ticker_obj = yf.Ticker(ticker)
-        news_items = ticker_obj.news
+        search = Search(ticker, news_count=5)
+        news_items = search.news
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching news: {e}")
 
-    # 2. If no news, return 404
+    # 2. If we got nothing back, 404
     if not news_items:
         raise HTTPException(status_code=404, detail=f"No news found for ticker '{ticker}'")
 
-    # 3. Build our response, slicing to the first 5 items
+    # 3. Pick out the right fields (there are a few possible key names)
     articles = []
-    for item in news_items[:5]:
-        articles.append(Article(
-            title=item.get("title", "No title"),
-            link=item.get("link", ""),
-            source=item.get("publisher", "Unknown source")
-        ))
+    for item in news_items:
+        title  = item.get("title") or item.get("headline") or "No title"
+        link   = item.get("link")  or item.get("url")      or ""
+        source = (
+            item.get("publisher")
+            or item.get("source")
+            or item.get("provider")
+            or "Unknown source"
+        )
+        articles.append(Article(title=title, link=link, source=source))
 
-    return NewsResponse(ticker=ticker.upper(), articles=articles)
+    return NewsResponse(ticker=ticker, articles=articles)
