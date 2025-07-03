@@ -1,44 +1,35 @@
 from fastapi import FastAPI
 import requests
-from bs4 import BeautifulSoup
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
 api = FastAPI()
 
+
 @api.get('/api/{stock_ticker}')
-def index(stock_ticker) -> float:
+def index(stock_ticker):
     data = getStockData(stock_ticker)
     print(data)
-    print(findLinks(stock_ticker))
-    return data['c']
+    return findLinks(stock_ticker)
 
 
 def getStockData(ticker):
-    header = {'X-Finnhub-Token' : 'd1fgsu1r01qig3h1ompgd1fgsu1r01qig3h1omq0'}
-    res = requests.get("https://finnhub.io/api/v1/quote?symbol=" + ticker, headers=header)
+    header = {'X-Finnhub-Token' : os.getenv("STOCK_DATA_TOKEN")}
+    res = requests.get(os.getenv("STOCK_DATA_URL") + ticker, headers=header)
     return res.json()
 
 def findLinks(ticker):
-    # search_url = "https://news.google.com/search?q=News about " + ticker
-    url = f"https://finance.yahoo.com/quote/{ticker}?p={ticker}"
-    headers = {
-        "User-Agent": (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/120.0.0.0 Safari/537.36"
-        )
-    }
+    newsLinks = []
+    searchQuery = "Stock news for " + ticker
+    apiKey = os.getenv("NEWS_TOKEN")
+    url = os.getenv("NEWS_URL").format(input=searchQuery, key = apiKey)
+    res = requests.get(url).json()
+    for i in range(0, 20):
+        newsLinks.append(res["articles"][i]["url"])
+    return newsLinks
 
-    response = requests.get(url, headers=headers)
-    if response.status_code != 200:
-        print(f"Error: Status code {response.status_code}")
-        return []
+# TODO: read links and extract words
+def getText(links):
+    return 0
 
-    soup = BeautifulSoup(response.text, "html.parser")
-
-    news_links = set()
-    for a_tag in soup.find_all("a", href=True):
-        href = a_tag["href"]
-        if "/news/" in href:
-            full_link = href
-            news_links.add(full_link)
-
-    return news_links
