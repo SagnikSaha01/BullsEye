@@ -2,6 +2,7 @@ from fastapi import FastAPI
 import requests
 from dotenv import load_dotenv
 import os
+from newspaper import Article
 
 load_dotenv()
 api = FastAPI()
@@ -11,7 +12,9 @@ api = FastAPI()
 def index(stock_ticker):
     data = getStockData(stock_ticker)
     print(data)
-    return findLinks(stock_ticker)
+    arr = findLinks(stock_ticker)
+    getText(arr)
+    return arr
 
 
 def getStockData(ticker):
@@ -31,5 +34,14 @@ def findLinks(ticker):
 
 # TODO: read links and extract words
 def getText(links):
+    for url in links:
+        try:
+            article = Article(url)
+            article.download()
+            article.parse()
+            #first 250 characters
+            print(url + " " +article.text[:250])
+        except Exception as e:
+            print("unable to access: " + url)
     return 0
 
