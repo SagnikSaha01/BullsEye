@@ -1,5 +1,8 @@
 # main.py
 from typing import List
+from newspaper import Article as NewsArticle
+from fastapi.responses import JSONResponse
+
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
@@ -19,6 +22,15 @@ app = FastAPI(
     title="Stock News Scraper",
     description="Returns the 5 most recent news articles for a given stock ticker.",
 )
+
+def extract_article_content(url: str) -> str:
+    try:
+        article = NewsArticle(url)
+        article.download()
+        article.parse()
+        return article.text
+    except Exception as e:
+        return f"Error fetching content: {e}"
 
 @app.get("/api/scrapenews/{ticker}", response_model=NewsResponse)
 def scrape_news(ticker: str):
@@ -49,3 +61,40 @@ def scrape_news(ticker: str):
         articles.append(Article(title=title, link=link, source=source))
 
     return NewsResponse(ticker=ticker, articles=articles)
+
+@app.get("/api/fullarticles/{ticker}")
+def get_full_articles(ticker: str):
+    # Step 1: Get article metadata using your existing function
+    news_response = scrape_news(ticker)
+
+    # Step 2: Extract full text from each article link
+    contents = []
+    for article in news_response.articles:
+        content = extract_article_content(article.link)
+        contents.append({
+            "title": article.title,
+            "source": article.source,
+            "link": article.link,
+            "content": content
+        })
+
+    return {
+        "ticker": ticker,
+        "full_articles": contents
+    }
+
+
+@app.get("/api/articletexts/{ticker}")
+def get_article_texts(ticker: str):
+    news_response = scrape_news(ticker)
+
+    contents = []
+    for article in news_response.articles:
+        content = extract_article_content(article.link)
+        contents.append(content)
+
+    return {
+        "ticker": ticker,
+        "article_texts": contents
+    }
+    
