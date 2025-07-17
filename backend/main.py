@@ -3,6 +3,7 @@ import requests
 from dotenv import load_dotenv
 import os
 from newspaper import Article
+import json
 
 load_dotenv()
 api = FastAPI()
@@ -13,7 +14,7 @@ def index(stock_ticker):
     data = getStockData(stock_ticker)
     print(data)
     arr = findLinks(stock_ticker)
-    getText(arr)
+    # getText(arr)
     return arr
 
 
@@ -23,25 +24,31 @@ def getStockData(ticker):
     return res.json()
 
 def findLinks(ticker):
-    newsLinks = []
+    outputJson = []
     searchQuery = "Stock news for " + ticker
     apiKey = os.getenv("NEWS_TOKEN")
     url = os.getenv("NEWS_URL").format(input=searchQuery, key = apiKey)
     res = requests.get(url).json()
-    for i in range(0, 20):
-        newsLinks.append(res["articles"][i]["url"])
-    return newsLinks
+    for i in range(0, 10):
+        json.dumps(outputJson.append({
+            "title" : res["articles"][i]["title"],
+            "url" : res["articles"][i]["url"],
+            "published" : res["articles"][i]["publishedAt"],
+            "stock": ticker,
+            "text": getText(res["articles"][i]["url"])
+        }))
+    return outputJson
 
-# TODO: read links and extract words
-def getText(links):
-    for url in links:
-        try:
-            article = Article(url)
-            article.download()
-            article.parse()
-            #first 250 characters
-            print(url + " " +article.text[:250])
-        except Exception as e:
-            print("unable to access: " + url)
-    return 0
+def getText(url):
+    print(url)
+    try:
+        article = Article(url)
+        article.download()
+        article.parse()
+        #first 250 characters
+        #print(url + " " +article.text)
+        return article.text
+    except Exception as e:
+        print("unable to access: " + url)
+        return ""
 
