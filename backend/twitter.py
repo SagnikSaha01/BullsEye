@@ -61,7 +61,7 @@ def scrape_twitter(
         )
 
     data = resp.json()
-    # run finbert on each tweet text
+    # runs finbert on each tweet and adds a "sentiment" key with label and score values to each json in the dictionary
     for tweet in data.get("data", []):
         out = sentiment_pipeline(tweet["text"])[0]
         tweet["sentiment"] = {"label": out["label"], "score": out["score"]}
