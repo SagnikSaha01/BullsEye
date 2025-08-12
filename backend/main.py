@@ -1,4 +1,7 @@
 # main.py
+from backend.ml_models.ProsusAI_finbert import finbert_classifier
+from backend.ml_models.vader import classify_vader
+
 from typing import List
 from newspaper import Article as NewsArticle
 from fastapi.responses import JSONResponse
@@ -18,6 +21,17 @@ class NewsResponse(BaseModel):
     ticker: str
     articles: List[Article]
 
+class SentimentRequest(BaseModel):
+    classifier: str  # "finbert" or "vader"
+
+class TextIn(BaseModel):
+    text: str
+    
+CLASSIFIERS = {
+    "finbert": finbert_classifier,
+    "vader":   classify_vader,
+}
+
 app = FastAPI(
     title="Stock News Scraper",
     description="Returns the 5 most recent news articles for a given stock ticker.",
@@ -32,6 +46,7 @@ def extract_article_content(url: str) -> str:
     except Exception as e:
         return f"Error fetching content: {e}"
 
+# This only gives the top 5 article titles and links, not full text
 @app.get("/api/scrapenews/{ticker}", response_model=NewsResponse)
 def scrape_news(ticker: str):
     ticker = ticker.upper()
@@ -62,6 +77,7 @@ def scrape_news(ticker: str):
 
     return NewsResponse(ticker=ticker, articles=articles)
 
+# This gives the full text of each article
 @app.get("/api/fullarticles/{ticker}")
 def get_full_articles(ticker: str):
     # Step 1: Get article metadata using your existing function
@@ -83,7 +99,7 @@ def get_full_articles(ticker: str):
         "full_articles": contents
     }
 
-
+# This gives all the 5 texts in an array, without titles or sources
 @app.get("/api/articletexts/{ticker}")
 def get_article_texts(ticker: str):
     news_response = scrape_news(ticker)
@@ -97,4 +113,56 @@ def get_article_texts(ticker: str):
         "ticker": ticker,
         "article_texts": contents
     }
-    
+
+# ------
+
+@app.post("/api/_debug/vader")
+def debug_vader(body: TextIn):
+    return classify_vader(body.text)
+
+@app.post("/api/_debug/finbert")
+def debug_finbert(body: TextIn):
+    return finbert_classifier(body.text)
+
+def to_label(pred):
+    if isinstance(pred, list) and pred and isinstance(pred[0], dict) and "label" in pred[0]:
+        return pred[0]["label"]
+    if isinstance(pred, dict) and "label" in pred:
+        return pred["label"]
+    return str(pred)
+
+def fetch_article_texts_array(ticker: str) -> list[str]:
+    """
+    Returns just the article texts as a Python list.
+    Works whether get_article_texts returns a dict or a JSONResponse.
+    """
+    resp = get_article_texts(ticker)
+
+    if isinstance(resp, JSONResponse):
+        try:
+            data = json.loads(resp.body.decode("utf-8"))
+        except Exception as e:
+            raise HTTPException(500, f"Could not parse JSONResponse: {e}")
+    elif isinstance(resp, dict):
+        data = resp
+    else:
+        raise HTTPException(500, f"Unexpected return type from get_article_texts: {type(resp)}")
+
+    texts = data.get("article_texts")
+    if not isinstance(texts, list):
+        raise HTTPException(500, "get_article_texts returned no 'article_texts' list")
+    return texts
+
+@app.post("/api/sentiment/{ticker}")
+def analyze_article_sentiment(ticker: str, req: SentimentRequest):
+    texts = fetch_article_texts_array(ticker)
+    key = req.classifier.lower()
+    if key not in CLASSIFIERS:
+        raise HTTPException(400, f"Unknown classifier '{req.classifier}'. Use one of: {list(CLASSIFIERS.keys())}")
+    clf = CLASSIFIERS[key]
+    try:
+        predictions = [to_label(clf(t)) for t in texts]
+    except Exception as e:
+        # Temporarily bubble the actual reason so we can fix it quickly
+        raise HTTPException(status_code=500, detail=f"classifier failed: {e}")
+    return {"ticker": ticker, "classifier": key, "count": len(texts), "predictions": predictions}

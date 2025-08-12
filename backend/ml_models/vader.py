@@ -1,11 +1,17 @@
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
-from backend.datasets.dataset import sentences, evaluate_classifier
 
 
 vader_analyzer = SentimentIntensityAnalyzer()
 
+_vader = None
+def _get_vader():
+    global _vader
+    if _vader is None:
+        _vader = SentimentIntensityAnalyzer()
+    return _vader
+
 def classify_vader(text):
-    score = vader_analyzer.polarity_scores(text)["compound"]
+    score =  _get_vader().polarity_scores(text)["compound"]
     if score >= 0.05:
         return [{"label": "positive"}]
     elif score <= -0.05:
