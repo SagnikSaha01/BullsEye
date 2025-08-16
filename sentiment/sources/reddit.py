@@ -22,7 +22,7 @@ def get_reddit_instance():
             reddit = praw.Reddit(
                 client_id=client_id,
                 client_secret=client_secret,
-                user_agent=user_agent,
+                grant_type='password',
                 username=username,
                 password=password,
             )

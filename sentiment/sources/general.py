@@ -22,3 +22,14 @@ class General:
             ]
         except Exception as e:
             return [{"error": f"Could not fetch articles: {str(e)}"}]
+
+
+if __name__ == "__main__":
+    gen = General()
+    ticker = "AAPL"  # you can replace this with "AAPL", "GOOG", etc.
+    results = gen.get_data(ticker)
+
+    print(f"Top news articles for {ticker}:\n")
+    for article in results:
+        print(f"- {article.get('title')} ({article.get('source')})")
+        print(f"  {article.get('url')}\n")
