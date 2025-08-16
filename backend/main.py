@@ -1,8 +1,10 @@
 # main.py
-from backend.ml_models.ProsusAI_finbert import finbert_classifier
+from backend.ml_models.ProsusAI_finbert import finbert_classifier, finbert_probs, round_probs
 from backend.ml_models.vader import classify_vader
+from backend.app_reddit import fetch_reddit, router as reddit_router
 
-from typing import List
+
+from typing import List, Literal
 from newspaper import Article as NewsArticle
 from fastapi.responses import JSONResponse
 
@@ -24,11 +26,13 @@ class NewsResponse(BaseModel):
 class SentimentRequest(BaseModel):
     classifier: str  # "finbert" or "vader"
 
+
 class TextIn(BaseModel):
     text: str
     
 CLASSIFIERS = {
-    "finbert": finbert_classifier,
+    "finbertone": finbert_classifier,
+    "finbertprobs": finbert_probs,
     "vader":   classify_vader,
 }
 
@@ -36,6 +40,7 @@ app = FastAPI(
     title="Stock News Scraper",
     description="Returns the 5 most recent news articles for a given stock ticker.",
 )
+app.include_router(reddit_router)
 
 def extract_article_content(url: str) -> str:
     try:
@@ -124,6 +129,10 @@ def debug_vader(body: TextIn):
 def debug_finbert(body: TextIn):
     return finbert_classifier(body.text)
 
+@app.post("/api/_debug/finbert_probs")
+def debug_finbert_probs(body: TextIn):
+    return round_probs(finbert_probs(body.text))
+
 def to_label(pred):
     if isinstance(pred, list) and pred and isinstance(pred[0], dict) and "label" in pred[0]:
         return pred[0]["label"]
@@ -160,9 +169,28 @@ def analyze_article_sentiment(ticker: str, req: SentimentRequest):
     if key not in CLASSIFIERS:
         raise HTTPException(400, f"Unknown classifier '{req.classifier}'. Use one of: {list(CLASSIFIERS.keys())}")
     clf = CLASSIFIERS[key]
+    
     try:
-        predictions = [to_label(clf(t)) for t in texts]
+        if key == "finbertprobs":
+            # return all three probabilities per article
+            predictions = [round_probs(clf(t)) for t in texts]
+        else:
+            # return a single top label per article
+            raw = [clf(t) for t in texts]  # each is {'label','score'} or similar
+            def to_label(pred):
+                if isinstance(pred, dict) and "label" in pred:
+                    return pred["label"]
+                if isinstance(pred, list) and pred and isinstance(pred[0], dict) and "label" in pred[0]:
+                    return pred[0]["label"]
+                return str(pred)
+            predictions = [to_label(p) for p in raw]
     except Exception as e:
-        # Temporarily bubble the actual reason so we can fix it quickly
         raise HTTPException(status_code=500, detail=f"classifier failed: {e}")
-    return {"ticker": ticker, "classifier": key, "count": len(texts), "predictions": predictions}
+
+    return {
+        "ticker": ticker,
+        "classifier": key,
+        "count": len(texts),
+        "predictions": predictions
+    }
+    
