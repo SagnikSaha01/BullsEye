@@ -23,61 +23,30 @@ function pct(n, d) {
   if (!d) return null;
   return Math.round((n / d) * 100);
 }
+function pc100(x) {
+  if (x == null) return 0;
+  const v = Number(x);
+  return Math.round((v <= 1 ? v * 100 : v));
+}
+function dominantFromAvg(avg) {
+  if (!avg) return { label: "N/A", valuePct: null };
+  const neg = Number(avg.negative ?? 0);
+  const neu = Number(avg.neutral  ?? 0);
+  const pos = Number(avg.positive ?? 0);
+  const max = Math.max(neg, neu, pos);
+  if (max === pos) return { label: "Positive", valuePct: pc100(pos) };
+  if (max === neu) return { label: "Neutral",  valuePct: pc100(neu) };
+  return { label: "Negative", valuePct: pc100(neg) };
+}
 function formatFromResponse(data) {
+  // For finbertprobs, show dominant class with its percentage from average_sentiment
   const avg = data?.average_sentiment;
-  const br  = avg?.breakdown || {};
-  const pos = Number(br.positive || 0);
-  const neu = Number(br.neutral  || 0);
-  const neg = Number(br.negative || 0);
-  const total = pos + neu + neg || (Array.isArray(data?.predictions) ? data.predictions.length : 0);
-
-  if (total > 0) {
-    const posPct = pct(pos, total);
-    if (posPct !== null) return `${posPct}% Positive`;
-  }
-
-  if (Array.isArray(data?.predictions) && data.predictions.length) {
-    const norm = data.predictions.map((p) => String(p).toLowerCase());
-    const posCount = norm.filter((p) => p.includes("pos")).length;
-    const posPct = pct(posCount, norm.length);
-    if (posPct !== null) return `${posPct}% Positive`;
-  }
-
-  return "N/A";
-}
-function dominantClass(pred) {
-  // pred can be string or dict (for finbertprobs)
-  if (typeof pred === "string") {
-    const p = pred.toLowerCase();
-    if (p.includes("pos")) return "pos";
-    if (p.includes("neg")) return "neg";
-    if (p.includes("neu")) return "neu";
-    return "";
-  }
-  if (pred && typeof pred === "object") {
-    const { positive = 0, neutral = 0, negative = 0 } = pred;
-    const max = Math.max(positive, neutral, negative);
-    if (max === positive) return "pos";
-    if (max === negative) return "neg";
-    if (max === neutral)  return "neu";
-  }
-  return "";
-}
-function predLabel(pred) {
-  if (typeof pred === "string") {
-    return pred.charAt(0).toUpperCase() + pred.slice(1);
-  }
-  if (pred && typeof pred === "object") {
-    const cls = dominantClass(pred);
-    if (cls === "pos") return "Positive";
-    if (cls === "neg") return "Negative";
-    if (cls === "neu") return "Neutral";
-  }
-  return "—";
+  const dom = dominantFromAvg(avg);
+  return dom.valuePct != null ? `${dom.valuePct}% ${dom.label}` : "N/A";
 }
 
 /* -------------------- API -------------------- */
-async function fetchYahooSentimentGET(ticker, classifier = "vader") {
+async function fetchYahooSentimentGET(ticker, classifier = "finbertprobs") {
   const url = `${API_BASE}/api/yf/sentiment/${encodeURIComponent(ticker)}?classifier=${encodeURIComponent(classifier)}`;
   const res = await fetch(url);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -97,14 +66,23 @@ function renderArticles(items) {
       const url   = it.url || "#";
       const src   = it.source || "Unknown";
       const prev  = it.content_preview || "";
-      const cls   = dominantClass(it.prediction);
-      const lab   = predLabel(it.prediction);
+
+      // prediction is a dict of floats for finbertprobs
+      const p = it.prediction || {};
+      const negPct = pc100(p.negative);
+      const neuPct = pc100(p.neutral);
+      const posPct = pc100(p.positive);
+
       return `
         <div class="item">
           <a class="title" href="${url}" target="_blank" rel="noopener">${title}</a>
-          <span class="pred ${cls}">${lab}</span>
           <span class="meta">${src}</span>
           ${prev ? `<div class="meta" style="margin-top:6px;">${prev}</div>` : ""}
+          <div class="preds">
+            <span class="badge pos">Pos ${posPct}%</span>
+            <span class="badge neu">Neu ${neuPct}%</span>
+            <span class="badge neg">Neg ${negPct}%</span>
+          </div>
         </div>
       `;
     })
@@ -130,7 +108,8 @@ async function handleSearch() {
   brandLogo.src = `components/${ticker.toLowerCase()}.png`;
 
   try {
-    const data = await fetchYahooSentimentGET(ticker, "vader");
+    // Use finbertprobs for this flow
+    const data = await fetchYahooSentimentGET(ticker, "finbertprobs");
     lastResult = data; // keep it so clicking can render articles
     yfText.textContent = formatFromResponse(data);
     setStatus("Done.", "ok");
