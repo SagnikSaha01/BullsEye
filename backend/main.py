@@ -1,19 +1,21 @@
 # main.py
+from typing import List, Literal
+import json
+
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+
+from newspaper import Article as NewsArticle
+import yfinance as yf
+from yfinance import Search
+
 from backend.ml_models.ProsusAI_finbert import finbert_classifier, finbert_probs, round_probs
 from backend.ml_models.vader import classify_vader
 from backend.app_reddit import fetch_reddit, router as reddit_router
 from backend.newsAPI import calculate_average_sentiment, router as news_router
 
-
-from typing import List, Literal
-from newspaper import Article as NewsArticle
-from fastapi.responses import JSONResponse
-
-
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
-import yfinance as yf
-from yfinance import Search
 
 class Article(BaseModel):
     title: str
@@ -25,24 +27,35 @@ class NewsResponse(BaseModel):
     articles: List[Article]
 
 class SentimentRequest(BaseModel):
-    classifier: str  # "finbert" or "vader"
-
+    classifier: str  # "finbertone", "finbertprobs", or "vader"
 
 class TextIn(BaseModel):
     text: str
-    
+
+
 CLASSIFIERS = {
     "finbertone": finbert_classifier,
     "finbertprobs": finbert_probs,
-    "vader":   classify_vader,
+    "vader": classify_vader,
 }
 
 app = FastAPI(
     title="Stock News Scraper",
     description="Returns the 5 most recent news articles for a given stock ticker.",
 )
+
+# CORS so the browser can call your API from a file:// page or another port
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],   # For dev; restrict in production
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Your extra routers
 app.include_router(reddit_router)
 app.include_router(news_router)
+
 
 def extract_article_content(url: str) -> str:
     try:
@@ -53,27 +66,24 @@ def extract_article_content(url: str) -> str:
     except Exception as e:
         return f"Error fetching content: {e}"
 
-# This only gives the top 5 article titles and links, not full text
+
+# ---------- Yahoo Finance News (metadata only) ----------
 @app.get("/api/yf/scrapenews/{ticker}", response_model=NewsResponse)
 def scrape_news(ticker: str):
     ticker = ticker.upper()
-
-    # 1. Try to fetch the top 5 news items via the Search API
     try:
         search = Search(ticker, news_count=5)
         news_items = search.news
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching news: {e}")
 
-    # 2. If we got nothing back, 404
     if not news_items:
         raise HTTPException(status_code=404, detail=f"No news found for ticker '{ticker}'")
 
-    # 3. Pick out the right fields (there are a few possible key names)
     articles = []
     for item in news_items:
-        title  = item.get("title") or item.get("headline") or "No title"
-        link   = item.get("link")  or item.get("url")      or ""
+        title = item.get("title") or item.get("headline") or "No title"
+        link = item.get("link") or item.get("url") or ""
         source = (
             item.get("publisher")
             or item.get("source")
@@ -84,13 +94,11 @@ def scrape_news(ticker: str):
 
     return NewsResponse(ticker=ticker, articles=articles)
 
-# This gives the full text of each article
+
+# ---------- Full article extraction (content) ----------
 @app.get("/api/yf/fullarticles/{ticker}")
 def get_full_articles(ticker: str):
-    # Step 1: Get article metadata using your existing function
     news_response = scrape_news(ticker)
-
-    # Step 2: Extract full text from each article link
     contents = []
     for article in news_response.articles:
         content = extract_article_content(article.link)
@@ -100,29 +108,20 @@ def get_full_articles(ticker: str):
             "link": article.link,
             "content": content
         })
+    return {"ticker": ticker, "full_articles": contents}
 
-    return {
-        "ticker": ticker,
-        "full_articles": contents
-    }
 
-# This gives all the 5 texts in an array, without titles or sources
 @app.get("/api/yf/articletexts/{ticker}")
 def get_article_texts(ticker: str):
     news_response = scrape_news(ticker)
-
     contents = []
     for article in news_response.articles:
         content = extract_article_content(article.link)
         contents.append(content)
+    return {"ticker": ticker, "article_texts": contents}
 
-    return {
-        "ticker": ticker,
-        "article_texts": contents
-    }
 
-# ------
-
+# ---------- Debug endpoints ----------
 @app.post("/api/_debug/vader")
 def debug_vader(body: TextIn):
     return classify_vader(body.text)
@@ -135,12 +134,14 @@ def debug_finbert(body: TextIn):
 def debug_finbert_probs(body: TextIn):
     return round_probs(finbert_probs(body.text))
 
+
 def to_label(pred):
     if isinstance(pred, list) and pred and isinstance(pred[0], dict) and "label" in pred[0]:
         return pred[0]["label"]
     if isinstance(pred, dict) and "label" in pred:
         return pred["label"]
     return str(pred)
+
 
 def fetch_article_texts_array(ticker: str) -> list[str]:
     """
@@ -164,12 +165,13 @@ def fetch_article_texts_array(ticker: str) -> list[str]:
         raise HTTPException(500, "get_article_texts returned no 'article_texts' list")
     return texts
 
+
 def fetch_full_articles_data(ticker: str) -> list[dict]:
     """
     Returns full article data including metadata and content.
     """
     resp = get_full_articles(ticker)
-    
+
     if isinstance(resp, JSONResponse):
         try:
             data = json.loads(resp.body.decode("utf-8"))
@@ -179,30 +181,28 @@ def fetch_full_articles_data(ticker: str) -> list[dict]:
         data = resp
     else:
         raise HTTPException(500, f"Unexpected return type from get_full_articles: {type(resp)}")
-    
+
     articles = data.get("full_articles")
     if not isinstance(articles, list):
         raise HTTPException(500, "get_full_articles returned no 'full_articles' list")
     return articles
 
+
+# ---------- Sentiment (Yahoo Finance-sourced articles) ----------
 @app.post("/api/yf/sentiment/{ticker}")
 def analyze_article_sentiment(ticker: str, req: SentimentRequest):
-    # Get full article data with metadata
     full_articles = fetch_full_articles_data(ticker)
-    
-    # Extract texts for sentiment analysis
     texts = [article.get("content", "") for article in full_articles]
-    
+
     key = req.classifier.lower()
     if key not in CLASSIFIERS:
         raise HTTPException(400, f"Unknown classifier '{req.classifier}'. Use one of: {list(CLASSIFIERS.keys())}")
     clf = CLASSIFIERS[key]
-    
+
     try:
         detailed_predictions = []
-        
+
         for i, (text, article) in enumerate(zip(texts, full_articles)):
-            # Skip if content is empty or error message
             if not text or text.startswith("Error fetching content:"):
                 prediction = "error" if key != "finbertprobs" else {"negative": 0, "neutral": 0, "positive": 0, "error": True}
             else:
@@ -210,14 +210,14 @@ def analyze_article_sentiment(ticker: str, req: SentimentRequest):
                     prediction = round_probs(clf(text))
                 else:
                     raw_pred = clf(text)
-                    def to_label(pred):
+                    def to_label_local(pred):
                         if isinstance(pred, dict) and "label" in pred:
                             return pred["label"]
                         if isinstance(pred, list) and pred and isinstance(pred[0], dict) and "label" in pred[0]:
                             return pred[0]["label"]
                         return str(pred)
-                    prediction = to_label(raw_pred)
-            
+                    prediction = to_label_local(raw_pred)
+
             detailed_predictions.append({
                 "article_index": i + 1,
                 "title": article.get("title", ""),
@@ -227,27 +227,30 @@ def analyze_article_sentiment(ticker: str, req: SentimentRequest):
                 "content_preview": text[:200] + "..." if len(text) > 200 else text,
                 "content_available": bool(text and not text.startswith("Error fetching content:"))
             })
-        
-        # Simple predictions array for backward compatibility
+
         simple_predictions = [item["prediction"] for item in detailed_predictions]
-        
-        # Calculate average sentiment
         average_sentiment = calculate_average_sentiment(simple_predictions, key)
-        
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"classifier failed: {e}")
 
     return {
-        "ticker": ticker,
+        "ticker": ticker.upper(),
         "classifier": key,
         "platform": "yahoo_finance",
         "count": len(texts),
-        "predictions": simple_predictions,  # Simple array for backward compatibility
-        "detailed_predictions": detailed_predictions,  # Detailed info with URLs and metadata
-        "average_sentiment": average_sentiment,  # New average sentiment
+        "predictions": simple_predictions,
+        "detailed_predictions": detailed_predictions,
+        "average_sentiment": average_sentiment,
         "summary": {
             "total_articles": len(full_articles),
             "successful_extractions": sum(1 for item in detailed_predictions if item["content_available"]),
             "failed_extractions": sum(1 for item in detailed_predictions if not item["content_available"])
         }
     }
+
+
+# Optional convenience: GET wrapper so you can call it from the browser:
+@app.get("/api/yf/sentiment/{ticker}")
+def analyze_article_sentiment_get(ticker: str, classifier: str = "vader"):
+    return analyze_article_sentiment(ticker, SentimentRequest(classifier=classifier))

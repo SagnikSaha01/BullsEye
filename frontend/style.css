@@ -1,3 +1,4 @@
+/* Layout */
 body {
   margin: 0;
   font-family: Arial, sans-serif;
@@ -7,46 +8,50 @@ body {
   align-items: flex-start;
   min-height: 100vh;
 }
-
 .container {
   width: 90%;
   max-width: 1200px;
   text-align: center;
   padding: 20px;
 }
-
 .logo img {
   width: 80px;
   margin-bottom: 20px;
 }
 
+/* Search */
 .search-bar {
   display: flex;
   justify-content: center;
+  gap: 10px;
   margin-bottom: 30px;
 }
-
 .search-bar input {
   padding: 12px 20px;
-  border-radius: 20px;
+  border-radius: 24px;
   border: none;
   width: 350px;
   text-align: center;
-  background-color: #3f3dbb;
+  background-color: #4737b9;
   color: white;
   font-size: 16px;
 }
-
-.search-bar input::placeholder {
-  color: #ddd;
+.search-bar input::placeholder { color: #ddd; }
+.search-bar button {
+  padding: 12px 20px;
+  border: none;
+  border-radius: 24px;
+  background-color: #3f51b5;
+  color: white;
+  cursor: pointer;
 }
 
+/* Dashboard */
 .dashboard {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 20px;
 }
-
 .card {
   background-color: #3f51b5;
   border-radius: 20px;
@@ -54,26 +59,77 @@ body {
   color: white;
   min-height: 350px;
 }
-
 .left-card {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 20px;
+  align-items: flex-start;
+  gap: 18px;
+  padding-left: 28px;
 }
-
 .tesla-logo {
   width: 80px;
+  align-self: center;
 }
 
+/* Sentiment rows */
 .sentiment {
   display: flex;
   align-items: center;
   gap: 10px;
   font-size: 18px;
 }
+.sentiment .icon { width: 24px; height: 24px; }
+.muted { opacity: 0.7; }
+.clickable { cursor: pointer; }
 
-.sentiment .icon {
-  width: 24px;
-  height: 24px;
+/* Articles panel */
+.articles {
+  width: 100%;
+  margin-top: 8px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(255,255,255,0.06);
+  text-align: left;
+  max-height: 260px;
+  overflow: auto;
 }
+.articles h4 {
+  margin: 0 0 10px 0;
+  font-size: 16px;
+  opacity: 0.9;
+}
+.articles .item {
+  padding: 10px 0;
+  border-top: 1px solid rgba(255,255,255,0.12);
+}
+.articles .item:first-child { border-top: none; }
+.articles .title {
+  display: inline-block;
+  font-weight: 600;
+  color: #fff;
+  text-decoration: none;
+}
+.articles .meta {
+  display: block;
+  font-size: 12px;
+  opacity: 0.8;
+  margin-top: 2px;
+}
+.articles .pred {
+  display: inline-block;
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  margin-left: 8px;
+  background: rgba(0,0,0,0.18);
+}
+.pred.pos { background: rgba(29,185,84,0.2); }    /* green-ish */
+.pred.neg { background: rgba(230,57,70,0.25); }   /* red-ish */
+.pred.neu { background: rgba(255,255,255,0.18); } /* gray-ish */
+
+.hidden { display: none; }
+
+/* Status text */
+.status { margin-top: 8px; font-size: 14px; opacity: 0.9; }
+.status.error { color: #ffe0e0; }
+.status.ok { color: #d9ffd9; }
