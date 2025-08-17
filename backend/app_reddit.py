@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 from fastapi import APIRouter
 from backend.ml_models.vader import classify_vader
 from backend.ml_models.ProsusAI_finbert import finbert_classifier, finbert_probs, round_probs
+from backend.newsAPI import calculate_average_sentiment
 import praw
 
 load_dotenv()
@@ -266,6 +267,8 @@ def analyze_reddit_sentiment(ticker: str, req: SentimentRequest):
                 return str(pred)
             
             predictions = [to_label(p) for p in raw]
+        
+        average_sentiment = calculate_average_sentiment(predictions, key)
             
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Classifier failed: {e}")
@@ -277,5 +280,6 @@ def analyze_reddit_sentiment(ticker: str, req: SentimentRequest):
         "query": reddit_response.query,
         "timeframe": req.timeframe,
         "count": len(texts),
-        "predictions": predictions
+        "predictions": predictions,
+        "average_sentiment": average_sentiment,
     }
