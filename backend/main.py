@@ -68,7 +68,7 @@ def extract_article_content(url: str) -> str:
 
 
 # ---------- Yahoo Finance News (metadata only) ----------
-@app.get("/api/yf/scrapenews/{ticker}", response_model=NewsResponse)
+@app.get("/api/yf/scrapenews/{ticker}", response_model=NewsResponse, include_in_schema=False)
 def scrape_news(ticker: str):
     ticker = ticker.upper()
     try:
@@ -96,7 +96,7 @@ def scrape_news(ticker: str):
 
 
 # ---------- Full article extraction (content) ----------
-@app.get("/api/yf/fullarticles/{ticker}")
+@app.get("/api/yf/fullarticles/{ticker}", include_in_schema=False)
 def get_full_articles(ticker: str):
     news_response = scrape_news(ticker)
     contents = []
@@ -111,7 +111,7 @@ def get_full_articles(ticker: str):
     return {"ticker": ticker, "full_articles": contents}
 
 
-@app.get("/api/yf/articletexts/{ticker}")
+@app.get("/api/yf/articletexts/{ticker}", include_in_schema=False)
 def get_article_texts(ticker: str):
     news_response = scrape_news(ticker)
     contents = []
@@ -122,15 +122,15 @@ def get_article_texts(ticker: str):
 
 
 # ---------- Debug endpoints ----------
-@app.post("/api/_debug/vader")
+@app.post("/api/_debug/vader", include_in_schema=False)
 def debug_vader(body: TextIn):
     return classify_vader(body.text)
 
-@app.post("/api/_debug/finbert")
+@app.post("/api/_debug/finbert", include_in_schema=False)
 def debug_finbert(body: TextIn):
     return finbert_classifier(body.text)
 
-@app.post("/api/_debug/finbert_probs")
+@app.post("/api/_debug/finbert_probs", include_in_schema=False)
 def debug_finbert_probs(body: TextIn):
     return round_probs(finbert_probs(body.text))
 
@@ -189,7 +189,7 @@ def fetch_full_articles_data(ticker: str) -> list[dict]:
 
 
 # ---------- Sentiment (Yahoo Finance-sourced articles) ----------
-@app.post("/api/yf/sentiment/{ticker}")
+@app.post("/api/yf/sentiment/{ticker}", include_in_schema=False)
 def analyze_article_sentiment(ticker: str, req: SentimentRequest):
     full_articles = fetch_full_articles_data(ticker)
     texts = [article.get("content", "") for article in full_articles]
