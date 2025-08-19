@@ -19,40 +19,40 @@
       <button id="searchBtn">Search</button>
     </div>
 
-    <!-- Dashboard -->
+    <!-- Single-column dashboard -->
     <div class="dashboard">
-      <!-- Left column -->
       <div class="card left-card">
         <img src="components/tesla.png" alt="Brand Logo" class="tesla-logo" id="brandLogo">
 
-        <!-- Yahoo average (CLICKABLE) -->
-        <div class="sentiment clickable" id="yfRow" title="Click to show articles">
+        <!-- Yahoo (CLICKABLE) -->
+        <div class="sentiment clickable" id="yfRow" title="Click to show Yahoo articles">
           <img src="components/yahoo.png" alt="Yahoo" class="icon">
           <span id="yfText">—</span>
         </div>
 
-        <!-- Placeholders -->
-        <div class="sentiment">
+        <!-- Reddit (CLICKABLE) -->
+        <div class="sentiment clickable" id="redditRow" title="Click to show Reddit posts">
           <img src="components/reddit.png" alt="Reddit" class="icon">
-          <span class="muted">Coming soon</span>
-        </div>
-        <div class="sentiment">
-          <img src="components/news.png" alt="News" class="icon">
-          <span class="muted">Coming soon</span>
+          <span id="redditText">—</span>
         </div>
 
-        <!-- Articles panel -->
-        <div id="articlesPanel" class="articles hidden"></div>
+        <!-- General News (CLICKABLE) -->
+        <div class="sentiment clickable" id="newsRow" title="Click to show General News">
+          <img src="components/news.png" alt="News" class="icon">
+          <span id="newsText">—</span>
+        </div>
+
+        <!-- Panels -->
+        <div id="articlesPanel" class="articles hidden"></div> <!-- Yahoo -->
+        <div id="redditPanel" class="articles hidden"></div>   <!-- Reddit -->
+        <div id="newsPanel" class="articles hidden"></div>     <!-- General News -->
 
         <div id="status" class="status"></div>
       </div>
-
-      <!-- Middle & right cards -->
-      <div class="card"></div>
-      <div class="card"></div>
     </div>
   </div>
 
-  <script src="./style.js?v=2"></script>
+  <!-- bump cache if needed -->
+  <script src="./style.js?v=5"></script>
 </body>
 </html>
