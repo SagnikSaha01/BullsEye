@@ -11,9 +11,10 @@ api = FastAPI()
 
 @api.get('/api/{stock_ticker}')
 def index(stock_ticker):
-    data = getStockData(stock_ticker)
-    print(data)
+    #data = getStockData(stock_ticker)
+    #print(data)
     arr = findLinks(stock_ticker)
+    print(arr)
     # getText(arr)
     return arr
 
@@ -29,7 +30,7 @@ def findLinks(ticker):
     apiKey = os.getenv("NEWS_TOKEN")
     url = os.getenv("NEWS_URL").format(input=searchQuery, key = apiKey)
     res = requests.get(url).json()
-    for i in range(0, 10):
+    for i in range(0, 50):
         json.dumps(outputJson.append({
             "title" : res["articles"][i]["title"],
             "url" : res["articles"][i]["url"],
@@ -40,7 +41,7 @@ def findLinks(ticker):
     return outputJson
 
 def getText(url):
-    print(url)
+    #print(url)
     try:
         article = Article(url)
         article.download()
