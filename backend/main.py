@@ -14,7 +14,7 @@ def index(stock_ticker):
     #data = getStockData(stock_ticker)
     #print(data)
     arr = findLinks(stock_ticker)
-    print(arr)
+    #print(arr)
     # getText(arr)
     return arr
 
@@ -30,7 +30,10 @@ def findLinks(ticker):
     apiKey = os.getenv("NEWS_TOKEN")
     url = os.getenv("NEWS_URL").format(input=searchQuery, key = apiKey)
     res = requests.get(url).json()
-    for i in range(0, 50):
+    total = res["totalResults"]
+    if(total > 50):
+        total = 50
+    for i in range(0, total):
         json.dumps(outputJson.append({
             "title" : res["articles"][i]["title"],
             "url" : res["articles"][i]["url"],

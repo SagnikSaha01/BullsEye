@@ -19,21 +19,19 @@ def cleanData(text):
 
     stop_words = set(stopwords.words("english"))
     lemmatizer = WordNetLemmatizer()
-    # lowercase
+    
     text = text.lower()
-    # remove punctuation/numbers
+   
     text = re.sub(r'[^a-z\s]', '', text)
-    # split into words
     tokens = text.split()
-    # remove stopwords & lemmatize
+    
     tokens = [lemmatizer.lemmatize(word) for word in tokens if word not in stop_words]
     return " ".join(tokens)
 
 def get_stock_price(stock_symbol, published_date):
-    # Convert published date to datetime.date
+
     publish_date = pd.to_datetime(published_date).date()
 
-    # Fetch 5 days around the publish date
     data = yf.download(
         stock_symbol,
         start=pd.to_datetime(publish_date) - pd.Timedelta(days=3),
@@ -45,9 +43,9 @@ def get_stock_price(stock_symbol, published_date):
     price_today = None
     price_next_day = None
 
-    # Loop through data.index and convert each to date for comparison
+
     for i, ts in enumerate(data.index):
-        ts_date = ts.date()  # convert Timestamp to datetime.date
+        ts_date = ts.date()  
         if ts_date >= publish_date:
             price_today = data.iloc[i]["Close"]
             if i + 1 < len(data):
@@ -60,7 +58,7 @@ def get_stock_price(stock_symbol, published_date):
     return int(price_next_day > price_today)
 
 
-CURRENT_TICKER_TO_TRAIN = "AMD"
+CURRENT_TICKER_TO_TRAIN = "AAPL"
 
 data = requests.get(os.getenv("LOCAL_API_URL") + CURRENT_TICKER_TO_TRAIN)
 df = pd.DataFrame(data.json())
@@ -69,7 +67,8 @@ df["text"] = df["text"].apply(cleanData)
 df['label'] = df.apply(lambda row: 1 if get_stock_price("TSLA", row['published']) else 0, axis=1)
 
 print(df)
-df.to_csv("articlesAMD.csv", index=False)
+df.to_csv("articlesAAPL.csv", index=False)
+
 
 
 
